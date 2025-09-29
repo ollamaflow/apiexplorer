@@ -116,7 +116,7 @@ const requestBodies = {
         ps: {},
         embeddings: {
             model: "llama2",
-            prompt: "The sky is blue because of Rayleigh scattering"
+            input: "The sky is blue because of Rayleigh scattering"
         },
         embed: {
             model: "llama2",
@@ -316,24 +316,26 @@ async function handleStreamingResponse(response, startTime) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let isStreamActive = true;
 
     displayHeaders(response.headers);
     responseBody.textContent = '';
     responsePreview.textContent = '';
 
     try {
-        while (true) {
+        while (isStreamActive) {
             const { done, value } = await reader.read();
 
             if (done) {
                 const endTime = Date.now();
                 displayStatus(response.status, response.statusText, endTime - startTime);
+                isStreamActive = false;
                 break;
             }
 
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split('\n');
-            buffer = lines.pop();
+            buffer = lines.pop(); // Keep the last incomplete line in buffer
 
             for (const line of lines) {
                 if (line.trim()) {
@@ -345,8 +347,10 @@ async function handleStreamingResponse(response, startTime) {
             }
         }
 
+        // Process any remaining data in buffer
         if (buffer.trim()) {
-            responseBody.textContent += buffer;
+            responseBody.textContent += buffer + '\n';
+            responseBody.scrollTop = responseBody.scrollHeight;
             extractAndDisplayPreview(buffer);
         }
     } catch (error) {
@@ -359,14 +363,20 @@ function extractAndDisplayPreview(line) {
     try {
         let jsonData;
 
+        // Handle Server-Sent Events format (OpenAI style)
         if (line.startsWith('data: ')) {
             const jsonStr = line.substring(6).trim();
-            if (jsonStr === '[DONE]') return;
+            if (jsonStr === '[DONE]') {
+                // Stream is complete
+                return;
+            }
             jsonData = JSON.parse(jsonStr);
         } else {
+            // Handle regular JSON (Ollama style)
             jsonData = JSON.parse(line);
         }
 
+        // Check for errors
         if (jsonData.error) {
             const errorMsg = `Error: ${typeof jsonData.error === 'string' ? jsonData.error : (jsonData.error.message || JSON.stringify(jsonData.error))}`;
             responsePreview.textContent += errorMsg + '\n';
@@ -374,19 +384,46 @@ function extractAndDisplayPreview(line) {
             return;
         }
 
+        // Extract content from different response formats
         let content = '';
+
+        // OpenAI streaming format
         if (jsonData.choices && jsonData.choices[0]?.delta?.content) {
             content = jsonData.choices[0].delta.content;
-        } else if (jsonData.message?.content) {
+        }
+        // OpenAI non-streaming format (shouldn't happen in stream but just in case)
+        else if (jsonData.choices && jsonData.choices[0]?.message?.content) {
+            content = jsonData.choices[0].message.content;
+        }
+        // Ollama chat format
+        else if (jsonData.message?.content) {
             content = jsonData.message.content;
         }
+        // Ollama generate format
+        else if (jsonData.response) {
+            content = jsonData.response;
+        }
+        // Ollama pull format (model download progress)
+        else if (jsonData.status) {
+            content = `[${jsonData.status}]`;
+            if (jsonData.completed && jsonData.total) {
+                const percent = ((jsonData.completed / jsonData.total) * 100).toFixed(1);
+                content += ` ${percent}%`;
+            }
+            if (jsonData.digest) {
+                content += ` ${jsonData.digest}`;
+            }
+            content += '\n';
+        }
 
+        // Update preview if we have content
         if (content) {
             responsePreview.textContent += content;
             responsePreview.scrollTop = responsePreview.scrollHeight;
         }
     } catch (error) {
-
+        // Log parsing errors to console for debugging but don't interrupt the stream
+        console.debug('Failed to parse streaming response line:', line, error);
     }
 }
 
@@ -406,6 +443,8 @@ async function handleNonStreamingResponse(response, startTime) {
             previewContent = data.choices[0].message.content;
         } else if (data.message?.content) {
             previewContent = data.message.content;
+        } else if (data.response) {
+            previewContent = data.response;
         } else {
             previewContent = JSON.stringify(data, null, 2);
         }
