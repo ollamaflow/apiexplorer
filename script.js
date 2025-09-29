@@ -12,6 +12,7 @@ const responseHeaders = document.getElementById('response-headers');
 const responseStatus = document.getElementById('response-status');
 
 let abortController = null;
+let previewContent = ''; // Store raw content for markdown rendering
 
 const requestTypeOptions = {
     ollama: [
@@ -57,7 +58,7 @@ const requestBodies = {
                 mirostat_tau: 5.0,
                 mirostat_eta: 0.1,
                 penalize_newline: true,
-                stop: ["\n\n", "User:", "Assistant:"],
+                stop: [],
                 numa: false,
                 num_ctx: 2048,
                 num_batch: 512,
@@ -92,7 +93,7 @@ const requestBodies = {
                 mirostat_tau: 5.0,
                 mirostat_eta: 0.1,
                 penalize_newline: true,
-                stop: ["\n\n", "User:", "Assistant:"],
+                stop: [],
                 numa: false,
                 num_ctx: 2048,
                 num_batch: 512,
@@ -137,7 +138,7 @@ const requestBodies = {
             top_p: 1.0,
             n: 1,
             stream: true,
-            stop: ["\n\n"],
+            stop: null,
             presence_penalty: 0.0,
             frequency_penalty: 0.0,
             logit_bias: null,
@@ -155,7 +156,7 @@ const requestBodies = {
             top_p: 1.0,
             n: 1,
             stream: true,
-            stop: ["\n\n"],
+            stop: null,
             presence_penalty: 0.0,
             frequency_penalty: 0.0,
             logit_bias: null,
@@ -275,9 +276,30 @@ function getEndpoint() {
 
 function clearResponse() {
     responseBody.textContent = '';
-    responsePreview.textContent = '';
+    responsePreview.innerHTML = '';
     responseHeaders.textContent = '';
     responseStatus.innerHTML = '';
+    previewContent = '';
+}
+
+function renderMarkdownToPreview(content) {
+    try {
+        // Configure marked for better security and formatting
+        marked.setOptions({
+            breaks: true, // Convert \n to <br>
+            gfm: true, // GitHub Flavored Markdown
+            sanitize: false, // We'll trust LLM output for now
+            smartLists: true,
+            smartypants: true
+        });
+
+        const html = marked.parse(content);
+        responsePreview.innerHTML = html;
+    } catch (error) {
+        // Fallback to plain text if markdown parsing fails
+        responsePreview.textContent = content;
+    }
+    responsePreview.scrollTop = responsePreview.scrollHeight;
 }
 
 function displayHeaders(headers) {
@@ -320,7 +342,8 @@ async function handleStreamingResponse(response, startTime) {
 
     displayHeaders(response.headers);
     responseBody.textContent = '';
-    responsePreview.textContent = '';
+    responsePreview.innerHTML = '';
+    previewContent = '';
 
     try {
         while (isStreamActive) {
@@ -355,7 +378,8 @@ async function handleStreamingResponse(response, startTime) {
         }
     } catch (error) {
         responseBody.textContent += `\n\nError: ${error.message}`;
-        responsePreview.textContent += `\n\nError: ${error.message}`;
+        previewContent += `\n\nError: ${error.message}`;
+        renderMarkdownToPreview(previewContent);
     }
 }
 
@@ -379,8 +403,8 @@ function extractAndDisplayPreview(line) {
         // Check for errors
         if (jsonData.error) {
             const errorMsg = `Error: ${typeof jsonData.error === 'string' ? jsonData.error : (jsonData.error.message || JSON.stringify(jsonData.error))}`;
-            responsePreview.textContent += errorMsg + '\n';
-            responsePreview.scrollTop = responsePreview.scrollHeight;
+            previewContent += errorMsg + '\n';
+            renderMarkdownToPreview(previewContent);
             return;
         }
 
@@ -418,8 +442,8 @@ function extractAndDisplayPreview(line) {
 
         // Update preview if we have content
         if (content) {
-            responsePreview.textContent += content;
-            responsePreview.scrollTop = responsePreview.scrollHeight;
+            previewContent += content;
+            renderMarkdownToPreview(previewContent);
         }
     } catch (error) {
         // Log parsing errors to console for debugging but don't interrupt the stream
@@ -436,20 +460,20 @@ async function handleNonStreamingResponse(response, startTime) {
         const data = await response.json();
         responseBody.textContent = JSON.stringify(data, null, 2);
 
-        let previewContent = '';
+        let content = '';
         if (data.error) {
-            previewContent = `Error: ${typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error))}`;
+            content = `Error: ${typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error))}`;
         } else if (data.choices && data.choices[0]?.message?.content) {
-            previewContent = data.choices[0].message.content;
+            content = data.choices[0].message.content;
         } else if (data.message?.content) {
-            previewContent = data.message.content;
+            content = data.message.content;
         } else if (data.response) {
-            previewContent = data.response;
+            content = data.response;
         } else {
-            previewContent = JSON.stringify(data, null, 2);
+            content = JSON.stringify(data, null, 2);
         }
 
-        responsePreview.textContent = previewContent;
+        renderMarkdownToPreview(content);
     } catch (error) {
         const text = await response.text();
         responseBody.textContent = text || `Error parsing response: ${error.message}`;
@@ -457,12 +481,12 @@ async function handleNonStreamingResponse(response, startTime) {
         try {
             const errorData = JSON.parse(text);
             if (errorData.error) {
-                responsePreview.textContent = `Error: ${typeof errorData.error === 'string' ? errorData.error : (errorData.error.message || JSON.stringify(errorData.error))}`;
+                renderMarkdownToPreview(`Error: ${typeof errorData.error === 'string' ? errorData.error : (errorData.error.message || JSON.stringify(errorData.error))}`);
             } else {
-                responsePreview.textContent = text;
+                renderMarkdownToPreview(text);
             }
         } catch {
-            responsePreview.textContent = text || `Error parsing response: ${error.message}`;
+            renderMarkdownToPreview(text || `Error parsing response: ${error.message}`);
         }
     }
 }

@@ -369,6 +369,117 @@ header .subtitle {
     color: #2c3e50;
 }
 
+/* Markdown-specific styles for preview pane */
+#response-preview h1 {
+    font-size: 2em;
+    font-weight: 600;
+    margin: 0.67em 0;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+#response-preview h2 {
+    font-size: 1.5em;
+    font-weight: 600;
+    margin: 0.75em 0;
+    padding-bottom: 0.2em;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+#response-preview h3 {
+    font-size: 1.25em;
+    font-weight: 600;
+    margin: 0.75em 0;
+}
+
+#response-preview h4, #response-preview h5, #response-preview h6 {
+    font-weight: 600;
+    margin: 0.75em 0;
+}
+
+#response-preview p {
+    margin: 0.5em 0;
+}
+
+#response-preview ul, #response-preview ol {
+    padding-left: 2em;
+    margin: 0.5em 0;
+}
+
+#response-preview li {
+    margin: 0.25em 0;
+}
+
+#response-preview code {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+#response-preview pre {
+    background-color: #f6f8fa;
+    padding: 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 0.5em 0;
+}
+
+#response-preview pre code {
+    background-color: transparent;
+    padding: 0;
+    font-size: 0.85em;
+    line-height: 1.45;
+}
+
+#response-preview blockquote {
+    border-left: 4px solid #d0d7de;
+    padding-left: 1em;
+    margin: 0.5em 0;
+    color: #656d76;
+}
+
+#response-preview table {
+    border-collapse: collapse;
+    margin: 0.5em 0;
+    width: 100%;
+}
+
+#response-preview table th,
+#response-preview table td {
+    border: 1px solid #d0d7de;
+    padding: 6px 13px;
+}
+
+#response-preview table th {
+    background-color: #f6f8fa;
+    font-weight: 600;
+}
+
+#response-preview a {
+    color: #0969da;
+    text-decoration: none;
+}
+
+#response-preview a:hover {
+    text-decoration: underline;
+}
+
+#response-preview hr {
+    border: none;
+    border-top: 1px solid #e0e0e0;
+    margin: 1em 0;
+}
+
+#response-preview strong {
+    font-weight: 600;
+}
+
+#response-preview em {
+    font-style: italic;
+}
+
 #response-status {
     display: flex;
     flex-direction: column;
