@@ -1,4 +1,4 @@
-# Ollama API Explorer
+# OllamaFlow API Explorer
 
 <img src="assets/logo.png" alt="OllamaFlow Logo" width="192" height="192">
 
@@ -6,7 +6,7 @@ A simple web-based API testing tool for [OllamaFlow](https://ollamaflow.com) - a
 
 ## Overview
 
-Ollama API Explorer provides an intuitive interface for testing and validating APIs in scaled inference architectures. Whether you're exploring API endpoints, debugging requests, or validating your OllamaFlow deployment, this tool offers a streamlined way to interact with your LLM services.
+OllamaFlow API Explorer provides an intuitive interface for testing and validating APIs in scaled inference architectures. Whether you're exploring API endpoints, debugging requests, or validating your OllamaFlow deployment, this tool offers a streamlined way to interact with your LLM services.
 
 ## Features
 
