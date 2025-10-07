@@ -13,6 +13,9 @@ const responseStatus = document.getElementById('response-status');
 
 let abortController = null;
 let previewContent = ''; // Store raw content for markdown rendering
+let requestStartTime = null;
+let firstTokenTime = null;
+let lastTokenTime = null;
 
 const requestTypeOptions = {
     ollama: [
@@ -108,7 +111,7 @@ const requestBodies = {
             keep_alive: "5m"
         },
         pull: {
-            name: "llama2"
+            model: "llama2"
         },
         list: {},
         delete: {
@@ -259,7 +262,7 @@ function updateBaseUrl() {
                 endpoint = '/api/ps';
                 break;
             case 'embeddings':
-                endpoint = '/api/embeddings';
+                endpoint = '/api/embed';
                 break;
             case 'embed':
                 endpoint = '/api/embed';
@@ -280,6 +283,9 @@ function clearResponse() {
     responseHeaders.textContent = '';
     responseStatus.innerHTML = '';
     previewContent = '';
+    requestStartTime = null;
+    firstTokenTime = null;
+    lastTokenTime = null;
 }
 
 function renderMarkdownToPreview(content) {
@@ -322,7 +328,7 @@ function displayHeaders(headers) {
 
 function displayStatus(status, statusText, requestTime) {
     const statusClass = status >= 200 && status < 300 ? 'status-ok' : 'status-error';
-    responseStatus.innerHTML = `
+    let statusHTML = `
         <div class="status-item">
             <span class="status-label">Status Code:</span>
             <span class="${statusClass}">${status} ${statusText}</span>
@@ -332,6 +338,24 @@ function displayStatus(status, statusText, requestTime) {
             <span>${requestTime}ms</span>
         </div>
     `;
+    
+    // Add streaming metrics if available
+    if (firstTokenTime && lastTokenTime) {
+        const timeToFirstToken = firstTokenTime - requestStartTime;
+        const streamingTime = lastTokenTime - firstTokenTime;
+        statusHTML += `
+            <div class="status-item">
+                <span class="status-label">Time to First Token:</span>
+                <span>${timeToFirstToken}ms</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Total Streaming Time:</span>
+                <span>${streamingTime}ms</span>
+            </div>
+        `;
+    }
+    
+    responseStatus.innerHTML = statusHTML;
 }
 
 async function handleStreamingResponse(response, startTime) {
@@ -339,6 +363,7 @@ async function handleStreamingResponse(response, startTime) {
     const decoder = new TextDecoder();
     let buffer = '';
     let isStreamActive = true;
+    let hasReceivedFirstToken = false;
 
     displayHeaders(response.headers);
     responseBody.textContent = '';
@@ -351,6 +376,7 @@ async function handleStreamingResponse(response, startTime) {
 
             if (done) {
                 const endTime = Date.now();
+                lastTokenTime = endTime;
                 displayStatus(response.status, response.statusText, endTime - startTime);
                 isStreamActive = false;
                 break;
@@ -362,6 +388,12 @@ async function handleStreamingResponse(response, startTime) {
 
             for (const line of lines) {
                 if (line.trim()) {
+                    // Track first token arrival
+                    if (!hasReceivedFirstToken) {
+                        firstTokenTime = Date.now();
+                        hasReceivedFirstToken = true;
+                    }
+                    
                     responseBody.textContent += line + '\n';
                     responseBody.scrollTop = responseBody.scrollHeight;
 
@@ -372,9 +404,20 @@ async function handleStreamingResponse(response, startTime) {
 
         // Process any remaining data in buffer
         if (buffer.trim()) {
+            // Track first token arrival for remaining buffer data
+            if (!hasReceivedFirstToken) {
+                firstTokenTime = Date.now();
+                hasReceivedFirstToken = true;
+            }
+            
             responseBody.textContent += buffer + '\n';
             responseBody.scrollTop = responseBody.scrollHeight;
             extractAndDisplayPreview(buffer);
+        }
+        
+        // If no tokens were received, set lastTokenTime to endTime for consistency
+        if (!hasReceivedFirstToken) {
+            lastTokenTime = Date.now();
         }
     } catch (error) {
         responseBody.textContent += `\n\nError: ${error.message}`;
@@ -457,7 +500,13 @@ async function handleNonStreamingResponse(response, startTime) {
     displayStatus(response.status, response.statusText, endTime - startTime);
 
     try {
-        const data = await response.json();
+        const responseText = await response.text();
+        if (!responseText) {
+          responseBody.textContent = response.statusText;
+          renderMarkdownToPreview(response.statusText);
+          return;
+        }
+        const data = JSON.parse(responseText);
         responseBody.textContent = JSON.stringify(data, null, 2);
 
         let content = '';
@@ -524,24 +573,33 @@ async function sendRequest() {
     stopButton.disabled = false;
 
     const startTime = Date.now();
-
+    requestStartTime = startTime;
+    const method = endpoint.endsWith("/api/tags")
+      ? "GET"
+      : endpoint.endsWith("/api/delete")
+      ? "DELETE"
+      : "POST";
     try {
         const response = await fetch(endpoint, {
-            method: 'POST',
+            method: method,
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(requestBody),
+            body: method === "GET" ? undefined : JSON.stringify(requestBody),
             signal: abortController.signal
         });
 
-        if (requestBody.stream) {
+        if (requestBody.stream || endpoint.endsWith("api/pull")) {
             await handleStreamingResponse(response, startTime);
         } else {
             await handleNonStreamingResponse(response, startTime);
         }
     } catch (error) {
         const endTime = Date.now();
+        // Reset timing variables on error
+        firstTokenTime = null;
+        lastTokenTime = null;
+        
         if (error.name === 'AbortError') {
             responseBody.textContent = 'Request cancelled by user';
             responsePreview.textContent = 'Request cancelled by user';
