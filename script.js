@@ -632,7 +632,7 @@ async function sendRequest() {
         }
     } finally {
         sendButton.disabled = false;
-        sendButton.textContent = 'Send Request';
+        sendButton.textContent = 'Send';
         stopButton.disabled = true;
         abortController = null;
     }
