@@ -361,7 +361,7 @@ header .subtitle {
     font-size: 13px;
     overflow-y: auto;
     white-space: pre-wrap;
-    word-wrap: break-word;
+    word-break: break-all;
 }
 
 #response-body {

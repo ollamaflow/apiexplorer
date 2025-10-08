@@ -477,6 +477,9 @@ function extractAndDisplayPreview(line) {
                 const percent = ((jsonData.completed / jsonData.total) * 100).toFixed(1);
                 content += ` ${percent}%`;
             }
+            if(jsonData.downloaded) {
+                content += ` ${(jsonData.downloaded/(1024*1024)).toFixed(1)}MB`;
+            }
             if (jsonData.digest) {
                 content += ` ${jsonData.digest}`;
             }
@@ -574,7 +577,7 @@ async function sendRequest() {
 
     const startTime = Date.now();
     requestStartTime = startTime;
-    const method = endpoint.endsWith("/api/tags")
+    const method = endpoint.endsWith("/api/tags") || endpoint.endsWith("/api/ps")
       ? "GET"
       : endpoint.endsWith("/api/delete")
       ? "DELETE"
